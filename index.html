@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Compliance — Diagnostic</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #18181c;
+    --border: #2a2a32;
+    --accent: #6ee7b7;
+    --accent2: #818cf8;
+    --text: #f0f0f4;
+    --muted: #7a7a8c;
+    --error: #f87171;
+    --radius: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 16px 80px;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(110,231,183,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(110,231,183,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .form-wrap {
+    width: 100%;
+    max-width: 680px;
+    position: relative;
+  }
+
+  /* Header */
+  .form-header {
+    margin-bottom: 48px;
+    text-align: center;
+  }
+
+  .badge {
+    display: none; /* "Diagnostic IA" label hidden from users */
+  }
+
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, #f0f0f4 30%, #6ee7b7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* Progress */
+  .progress-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 99px;
+    margin-bottom: 40px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 99px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  /* Steps */
+  .step { display: none; }
+  .step.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Question card */
+  .question-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    margin-bottom: 24px;
+  }
+
+  .question-label {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .question-hint {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+
+  .field-key {
+    display: none; /* hidden from users — data-value/data-text attributes still available to JS & Make.com */
+  }
+
+  /* Radio / Checkbox options */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+
+  .option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+  }
+  .option:hover { border-color: var(--accent); background: rgba(110,231,183,0.04); }
+  .option.selected { border-color: var(--accent); background: rgba(110,231,183,0.08); }
+
+  .option input { display: none; }
+
+  .option-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .option.selected .option-dot {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+  .option.selected .option-dot::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    background: var(--bg);
+    border-radius: 50%;
+  }
+
+  .option-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .option.selected .option-check {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+  .option.selected .option-check::after {
+    content: '✓';
+    font-size: 11px;
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  .option-text { font-size: 14px; line-height: 1.5; color: var(--text); }
+
+  /* Text input */
+  .text-input {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    padding: 14px 16px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .text-input:focus { border-color: var(--accent); }
+  .text-input::placeholder { color: var(--muted); }
+
+  /* Linear scale */
+  .scale-wrap { display: flex; gap: 10px; }
+  .scale-btn {
+    flex: 1;
+    padding: 12px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .scale-btn:hover { border-color: var(--accent); }
+  .scale-btn.selected { border-color: var(--accent); background: rgba(110,231,183,0.1); color: var(--accent); font-weight: 600; }
+  .scale-labels { display: flex; justify-content: space-between; margin-top: 8px; }
+  .scale-labels span { font-size: 11px; color: var(--muted); }
+
+  /* Navigation */
+  .nav { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 28px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-next {
+    background: var(--accent);
+    color: #0a0a0c;
+  }
+  .btn-next:hover { background: #34d399; transform: translateY(-1px); }
+  .btn-prev {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-prev:hover { border-color: var(--muted); color: var(--text); }
+  .btn-submit {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+  }
+  .btn-submit:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  .step-counter { font-size: 13px; color: var(--muted); }
+
+  /* Summary / output */
+  .summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+  .summary h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    margin-bottom: 24px;
+    color: var(--accent);
+  }
+  .summary-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-key {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--accent2);
+    min-width: 180px;
+    flex-shrink: 0;
+  }
+  .summary-val { color: var(--text); word-break: break-word; }
+
+  .json-block {
+    background: #0d0d10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #a5f3c0;
+    overflow-x: auto;
+    white-space: pre;
+    margin-top: 20px;
+    line-height: 1.6;
+  }
+
+  .copy-btn {
+    margin-top: 12px;
+    background: rgba(110,231,183,0.1);
+    border: 1px solid rgba(110,231,183,0.2);
+    color: var(--accent);
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { background: rgba(110,231,183,0.2); }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="form-wrap">
+  <div class="form-header">
+    <div class="badge">Diagnostic IA</div>
+    <h1>AI Compliance<br><em>Assessment</em></h1>
+    <p class="subtitle">Évaluez votre conformité au règlement européen sur l'IA. Répondez à chaque question pour obtenir votre analyse personnalisée.</p>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+
+  <div id="form-steps">
+
+    <!-- STEP 1: sector -->
+    <div class="step active" data-step="1">
+      <div class="question-card">
+        <div class="field-key">question_rEW45R · label: sector</div>
+        <div class="question-label">Quel est votre secteur d'activité ?</div>
+        <div class="question-hint">Sélectionnez le secteur qui correspond le mieux à votre organisation.</div>
+        <div class="options" id="sector-opts">
+          <label class="option" data-value="7d32a6db-da88-4d5e-83a8-cdd65f68fdcb" data-text="Commerce & retail">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">Commerce & retail</span>
+          </label>
+          <label class="option" data-value="8ad3826a-c678-48cc-ac91-861c08550113" data-text="Ressources humaines — Risque élevé Annexe III">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">Ressources humaines <span style="color:var(--error);font-size:11px;">⚠ Risque élevé Annexe III</span></span>
+          </label>
+          <label class="option" data-value="8b7a02da-f7b8-4e83-8fe5-56ad5f0f4106" data-text="Marketing & communication">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">Marketing & communication</span>
+          </label>
+          <label class="option" data-value="339666ce-4faf-4d58-8c17-90060a0d20e6" data-text="BTP & industrie">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">BTP & industrie</span>
+          </label>
+          <label class="option" data-value="099b185c-c3e9-418b-9477-3f580b49a29c" data-text="Finance & assurance — Risque élevé Annexe III">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">Finance & assurance <span style="color:var(--error);font-size:11px;">⚠ Risque élevé Annexe III</span></span>
+          </label>
+          <label class="option" data-value="92b0d396-af72-4f78-95e8-e100638bf54c" data-text="Santé & médical — Risque élevé Annexe III">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">Santé & médical <span style="color:var(--error);font-size:11px;">⚠ Risque élevé Annexe III</span></span>
+          </label>
+          <label class="option" data-value="2ba294dc-704a-46c7-8472-c94176e6bad8" data-text="IT & technologie">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">IT & technologie</span>
+          </label>
+          <label class="option" data-value="a1a55984-a00c-446d-a6b3-5e5aa4037b43" data-text="Autre secteur">
+            <input type="radio" name="sector">
+            <span class="option-dot"></span>
+            <span class="option-text">Autre secteur</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <span class="step-counter">1 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: employee_count -->
+    <div class="step" data-step="2">
+      <div class="question-card">
+        <div class="field-key">question_4jd6QY · label: employee_count</div>
+        <div class="question-label">Combien de salariés compte votre entreprise ?</div>
+        <div class="question-hint">Nombre d'employés à temps plein.</div>
+        <div class="options">
+          <label class="option" data-value="f06529c7-08e0-44d3-84aa-a6603b11a691" data-text="1–9">
+            <input type="radio" name="employee_count">
+            <span class="option-dot"></span>
+            <span class="option-text">1–9</span>
+          </label>
+          <label class="option" data-value="40158704-db97-4a3c-806a-012de72f9c8d" data-text="10–49">
+            <input type="radio" name="employee_count">
+            <span class="option-dot"></span>
+            <span class="option-text">10–49</span>
+          </label>
+          <label class="option" data-value="99dd356d-0ee2-4c4b-b3ab-ad5fe6839daa" data-text="50–249">
+            <input type="radio" name="employee_count">
+            <span class="option-dot"></span>
+            <span class="option-text">50–249</span>
+          </label>
+          <label class="option" data-value="b1ca2ae7-0e25-4e3f-b2c2-0d6853afa9e1" data-text="250–999">
+            <input type="radio" name="employee_count">
+            <span class="option-dot"></span>
+            <span class="option-text">250–999</span>
+          </label>
+          <label class="option" data-value="de17591c-f967-4abf-beb7-aa7d78d5c243" data-text="1 000+">
+            <input type="radio" name="employee_count">
+            <span class="option-dot"></span>
+            <span class="option-text">1 000+</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">2 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: role_ai -->
+    <div class="step" data-step="3">
+      <div class="question-card">
+        <div class="field-key">question_jx2RZ4 · label: role_ai</div>
+        <div class="question-label">Quel est votre rôle vis-à-vis de l'IA ?</div>
+        <div class="question-hint">Selon le règlement IA européen, votre rôle détermine vos obligations.</div>
+        <div class="options">
+          <label class="option" data-value="2f02c4fb-f07f-4840-aa8b-e094dcc10981" data-text="Déployeur uniquement">
+            <input type="radio" name="role_ai">
+            <span class="option-dot"></span>
+            <span class="option-text">Déployeur uniquement — J'utilise des outils IA tiers (CRM, chatbot, ATS...)</span>
+          </label>
+          <label class="option" data-value="1cbf1ba8-9962-4bc3-82e8-1d0804f376b5" data-text="Fournisseur">
+            <input type="radio" name="role_ai">
+            <span class="option-dot"></span>
+            <span class="option-text">Fournisseur — Je développe ou commercialise un système IA</span>
+          </label>
+          <label class="option" data-value="a568ead6-fad9-49ac-bb5b-c9e828a98f63" data-text="Les deux">
+            <input type="radio" name="role_ai">
+            <span class="option-dot"></span>
+            <span class="option-text">Les deux — Je développe ET j'utilise des systèmes IA tiers</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">3 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: ai_tools (CHECKBOXES) -->
+    <div class="step" data-step="4">
+      <div class="question-card">
+        <div class="field-key">question_2r5WX9 · label: ai_tools · type: CHECKBOXES</div>
+        <div class="question-label">Quels outils IA utilisez-vous ?</div>
+        <div class="question-hint">Sélectionnez tous les outils que vous utilisez (plusieurs choix possibles).</div>
+        <div class="options" id="ai_tools-opts">
+          <label class="option checkbox-opt" data-value="71e2ae1a-f063-461a-bbfc-13a0c98816f5" data-text="ChatGPT / OpenAI">
+            <input type="checkbox" name="ai_tools" value="71e2ae1a-f063-461a-bbfc-13a0c98816f5">
+            <span class="option-check"></span>
+            <span class="option-text">ChatGPT / OpenAI</span>
+          </label>
+          <label class="option checkbox-opt" data-value="9c2e76b2-0427-4b0b-9500-04506d620b6a" data-text="Copilot (Microsoft)">
+            <input type="checkbox" name="ai_tools" value="9c2e76b2-0427-4b0b-9500-04506d620b6a">
+            <span class="option-check"></span>
+            <span class="option-text">Copilot (Microsoft)</span>
+          </label>
+          <label class="option checkbox-opt" data-value="ebd95411-842d-47cd-9659-ef6b50b73ea0" data-text="Gemini (Google)">
+            <input type="checkbox" name="ai_tools" value="ebd95411-842d-47cd-9659-ef6b50b73ea0">
+            <span class="option-check"></span>
+            <span class="option-text">Gemini (Google)</span>
+          </label>
+          <label class="option checkbox-opt" data-value="d35b1bb3-3eb3-4f82-80e7-625b4e72fca0" data-text="Claude (Anthropic)">
+            <input type="checkbox" name="ai_tools" value="d35b1bb3-3eb3-4f82-80e7-625b4e72fca0">
+            <span class="option-check"></span>
+            <span class="option-text">Claude (Anthropic)</span>
+          </label>
+          <label class="option checkbox-opt" data-value="f40fb673-e182-450c-88d4-46a3c73bea89" data-text="Mistral">
+            <input type="checkbox" name="ai_tools" value="f40fb673-e182-450c-88d4-46a3c73bea89">
+            <span class="option-check"></span>
+            <span class="option-text">Mistral</span>
+          </label>
+          <label class="option checkbox-opt" data-value="d6122aa7-b626-445e-b04e-4b162b103dc9" data-text="Midjourney / DALL·E">
+            <input type="checkbox" name="ai_tools" value="d6122aa7-b626-445e-b04e-4b162b103dc9">
+            <span class="option-check"></span>
+            <span class="option-text">Midjourney / DALL·E</span>
+          </label>
+          <label class="option checkbox-opt" data-value="0347216c-7882-4d1b-8238-8696ac53b30e" data-text="IA intégrée au CRM">
+            <input type="checkbox" name="ai_tools" value="0347216c-7882-4d1b-8238-8696ac53b30e">
+            <span class="option-check"></span>
+            <span class="option-text">IA intégrée au CRM</span>
+          </label>
+          <label class="option checkbox-opt" data-value="86cf1a6a-b9a0-43c8-ac7c-f525f8007b18" data-text="IA dans l'ERP">
+            <input type="checkbox" name="ai_tools" value="86cf1a6a-b9a0-43c8-ac7c-f525f8007b18">
+            <span class="option-check"></span>
+            <span class="option-text">IA dans l'ERP</span>
+          </label>
+          <label class="option checkbox-opt" data-value="946c8c73-7e2a-47ed-badc-262a42e6760b" data-text="Chatbot service client">
+            <input type="checkbox" name="ai_tools" value="946c8c73-7e2a-47ed-badc-262a42e6760b">
+            <span class="option-check"></span>
+            <span class="option-text">Chatbot service client</span>
+          </label>
+          <label class="option checkbox-opt" data-value="0b081af7-2167-42bb-bb8a-dc63b19f04e8" data-text="Outil de recrutement IA">
+            <input type="checkbox" name="ai_tools" value="0b081af7-2167-42bb-bb8a-dc63b19f04e8">
+            <span class="option-check"></span>
+            <span class="option-text">Outil de recrutement IA</span>
+          </label>
+          <label class="option checkbox-opt" data-value="bde1a31a-1ed6-437d-92ee-7ae548a76dcc" data-text="Outil d'analyse de données">
+            <input type="checkbox" name="ai_tools" value="bde1a31a-1ed6-437d-92ee-7ae548a76dcc">
+            <span class="option-check"></span>
+            <span class="option-text">Outil d'analyse de données</span>
+          </label>
+          <label class="option checkbox-opt" data-value="4b0ad2ed-5be2-4f9e-ac12-50c0c1c28cfd" data-text="Autre outil IA">
+            <input type="checkbox" name="ai_tools" value="4b0ad2ed-5be2-4f9e-ac12-50c0c1c28cfd">
+            <span class="option-check"></span>
+            <span class="option-text">Autre outil IA</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">4 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 5: chatbot_yn (LINEAR_SCALE) -->
+    <div class="step" data-step="5">
+      <div class="question-card">
+        <div class="field-key">question_xZBqr5 · label: chatbot_yn · type: LINEAR_SCALE</div>
+        <div class="question-label">Utilisez-vous un chatbot client avec l'IA ?</div>
+        <div class="question-hint">Sur une échelle de 1 à 5.</div>
+        <div class="scale-wrap" id="chatbot_yn-scale">
+          <button class="scale-btn" data-val="1" onclick="selectScale('chatbot_yn',1,this)">1</button>
+          <button class="scale-btn" data-val="2" onclick="selectScale('chatbot_yn',2,this)">2</button>
+          <button class="scale-btn" data-val="3" onclick="selectScale('chatbot_yn',3,this)">3</button>
+          <button class="scale-btn" data-val="4" onclick="selectScale('chatbot_yn',4,this)">4</button>
+          <button class="scale-btn" data-val="5" onclick="selectScale('chatbot_yn',5,this)">5</button>
+        </div>
+        <div class="scale-labels"><span>Pas du tout</span><span>Totalement</span></div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">5 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 6: hr_ai_yn (LINEAR_SCALE) -->
+    <div class="step" data-step="6">
+      <div class="question-card">
+        <div class="field-key">question_oOQPEP · label: hr_ai_yn · type: LINEAR_SCALE</div>
+        <div class="question-label">Utilisez-vous l'IA dans les processus RH (recrutement, évaluation...) ?</div>
+        <div class="question-hint">Sur une échelle de 1 à 5.</div>
+        <div class="scale-wrap" id="hr_ai_yn-scale">
+          <button class="scale-btn" onclick="selectScale('hr_ai_yn',1,this)">1</button>
+          <button class="scale-btn" onclick="selectScale('hr_ai_yn',2,this)">2</button>
+          <button class="scale-btn" onclick="selectScale('hr_ai_yn',3,this)">3</button>
+          <button class="scale-btn" onclick="selectScale('hr_ai_yn',4,this)">4</button>
+          <button class="scale-btn" onclick="selectScale('hr_ai_yn',5,this)">5</button>
+        </div>
+        <div class="scale-labels"><span>Pas du tout</span><span>Totalement</span></div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">6 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 7: data_types -->
+    <div class="step" data-step="7">
+      <div class="question-card">
+        <div class="field-key">question_O0y2aR · label: data_types · type: MULTIPLE_CHOICE</div>
+        <div class="question-label">Quels types de données personnelles traitez-vous avec l'IA ?</div>
+        <div class="options">
+          <label class="option" data-value="6e3838ff-9c88-4e43-bb2c-a3cc42905e47" data-text="Données clients (nom, email...)">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données clients (nom, email...)</span>
+          </label>
+          <label class="option" data-value="951e133f-85d6-4d6c-8e57-6ddbc7d0a486" data-text="Données biométriques">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données biométriques</span>
+          </label>
+          <label class="option" data-value="373f0bde-dd89-44ec-b6bb-fc6ff9cbf587" data-text="Données de santé">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données de santé</span>
+          </label>
+          <label class="option" data-value="48081783-2131-481c-b024-e26cc872532f" data-text="Données RH / candidats">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données RH / candidats</span>
+          </label>
+          <label class="option" data-value="ceb26a88-5ab3-41bd-adcc-70ea8f977987" data-text="Données financières">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données financières</span>
+          </label>
+          <label class="option" data-value="6f0c9d00-26a2-4a5c-80a7-5791ea3b2aef" data-text="Données de navigation / comportement">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données de navigation / comportement</span>
+          </label>
+          <label class="option" data-value="cc63662f-0520-483b-ab8b-32e60ae0db12" data-text="Données publiques uniquement">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Données publiques uniquement</span>
+          </label>
+          <label class="option" data-value="a2d64bc8-5c64-46d8-a965-2e015af4c4d8" data-text="Contenus générés (texte, image)">
+            <input type="radio" name="data_types">
+            <span class="option-dot"></span>
+            <span class="option-text">Contenus générés (texte, image)</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">7 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 8: auto_decision_yn -->
+    <div class="step" data-step="8">
+      <div class="question-card">
+        <div class="field-key">question_V8yeGg · label: auto_decision_yn · type: LINEAR_SCALE</div>
+        <div class="question-label">L'IA prend-elle des décisions automatiques sans intervention humaine ?</div>
+        <div class="question-hint">Sur une échelle de 1 à 5.</div>
+        <div class="scale-wrap" id="auto_decision_yn-scale">
+          <button class="scale-btn" onclick="selectScale('auto_decision_yn',1,this)">1</button>
+          <button class="scale-btn" onclick="selectScale('auto_decision_yn',2,this)">2</button>
+          <button class="scale-btn" onclick="selectScale('auto_decision_yn',3,this)">3</button>
+          <button class="scale-btn" onclick="selectScale('auto_decision_yn',4,this)">4</button>
+          <button class="scale-btn" onclick="selectScale('auto_decision_yn',5,this)">5</button>
+        </div>
+        <div class="scale-labels"><span>Jamais</span><span>Toujours</span></div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">8 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 9: ai_content_yn -->
+    <div class="step" data-step="9">
+      <div class="question-card">
+        <div class="field-key">question_P0yxpV · label: ai_content_yn · type: LINEAR_SCALE</div>
+        <div class="question-label">Publiez-vous des contenus générés par IA sans les signaler ?</div>
+        <div class="question-hint">Sur une échelle de 1 à 5.</div>
+        <div class="scale-wrap" id="ai_content_yn-scale">
+          <button class="scale-btn" onclick="selectScale('ai_content_yn',1,this)">1</button>
+          <button class="scale-btn" onclick="selectScale('ai_content_yn',2,this)">2</button>
+          <button class="scale-btn" onclick="selectScale('ai_content_yn',3,this)">3</button>
+          <button class="scale-btn" onclick="selectScale('ai_content_yn',4,this)">4</button>
+          <button class="scale-btn" onclick="selectScale('ai_content_yn',5,this)">5</button>
+        </div>
+        <div class="scale-labels"><span>Jamais</span><span>Toujours</span></div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">9 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 10: vendor_compliance -->
+    <div class="step" data-step="10">
+      <div class="question-card">
+        <div class="field-key">question_E0YRK4 · label: vendor_compliance · type: MULTIPLE_CHOICE</div>
+        <div class="question-label">Vos fournisseurs IA sont-ils conformes au règlement européen ?</div>
+        <div class="options">
+          <label class="option" data-value="278a105c-7996-4617-970f-c3f437ee6b3e" data-text="Oui — j'ai leurs attestations de conformité">
+            <input type="radio" name="vendor_compliance">
+            <span class="option-dot"></span>
+            <span class="option-text">Oui — j'ai leurs attestations de conformité</span>
+          </label>
+          <label class="option" data-value="2b31ef43-1e24-42a9-8339-09e2801c2898" data-text="Non — je ne sais pas comment vérifier">
+            <input type="radio" name="vendor_compliance">
+            <span class="option-dot"></span>
+            <span class="option-text">Non — je ne sais pas comment vérifier</span>
+          </label>
+          <label class="option" data-value="67388639-836f-453a-a3c6-ca75a773c1a1" data-text="En cours — j'ai demandé à mes fournisseurs">
+            <input type="radio" name="vendor_compliance">
+            <span class="option-dot"></span>
+            <span class="option-text">En cours — j'ai demandé à mes fournisseurs</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">10 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 11: ai_literacy -->
+    <div class="step" data-step="11">
+      <div class="question-card">
+        <div class="field-key">question_rEW45N · label: ai_literacy · type: MULTIPLE_CHOICE</div>
+        <div class="question-label">Vos équipes ont-elles reçu une formation sur l'IA ?</div>
+        <div class="options">
+          <label class="option" data-value="71854774-1608-4c21-b8ac-b11e108d813b" data-text="Oui — formation documentée">
+            <input type="radio" name="ai_literacy">
+            <span class="option-dot"></span>
+            <span class="option-text">Oui — formation documentée</span>
+          </label>
+          <label class="option" data-value="5db7ca01-e925-47fc-b29e-0455e8da81d0" data-text="Partiellement — quelques équipes seulement">
+            <input type="radio" name="ai_literacy">
+            <span class="option-dot"></span>
+            <span class="option-text">Partiellement — quelques équipes seulement</span>
+          </label>
+          <label class="option" data-value="4e07b1e4-ee59-4b52-b07a-82b082f19737" data-text="Non — pas encore">
+            <input type="radio" name="ai_literacy">
+            <span class="option-dot"></span>
+            <span class="option-text">Non — pas encore</span>
+          </label>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">11 / 12</span>
+        <button class="btn btn-next" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <!-- STEP 12: Contact info -->
+    <div class="step" data-step="12">
+      <div class="question-card">
+        <div class="section-title">Vos coordonnées</div>
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <div>
+            <div class="field-key">question_4jd6BX · label: name · type: INPUT_TEXT</div>
+            <div class="question-label" style="font-size:15px;margin-bottom:8px;">Nom complet</div>
+            <input class="text-input" type="text" id="inp-name" placeholder="Ex: Rajesh Singh">
+          </div>
+          <div>
+            <div class="field-key">question_jx2Rba · label: email · type: INPUT_EMAIL</div>
+            <div class="question-label" style="font-size:15px;margin-bottom:8px;">Adresse e-mail</div>
+            <input class="text-input" type="email" id="inp-email" placeholder="votre@email.com">
+          </div>
+          <div>
+            <div class="field-key">question_2r5WBj · label: company · type: INPUT_TEXT</div>
+            <div class="question-label" style="font-size:15px;margin-bottom:8px;">Nom de l'entreprise</div>
+            <input class="text-input" type="text" id="inp-company" placeholder="Ex: Acme SAS">
+          </div>
+          <div>
+            <div class="field-key">question_xZBqjr · label: siren · type: INPUT_TEXT</div>
+            <div class="question-label" style="font-size:15px;margin-bottom:8px;">Numéro SIREN</div>
+            <input class="text-input" type="text" id="inp-siren" placeholder="9 chiffres">
+          </div>
+        </div>
+      </div>
+      <div class="nav">
+        <button class="btn btn-prev" onclick="prevStep()">← Retour</button>
+        <span class="step-counter">12 / 12</span>
+        <button class="btn btn-submit" onclick="submitForm()">Obtenir mon diagnostic →</button>
+      </div>
+    </div>
+
+    <!-- STEP 13: Results -->
+    <div class="step" data-step="13">
+      <div class="summary">
+        <h2>✅ Diagnostic envoyé</h2>
+        <p id="webhook-status" style="font-size:14px;margin-bottom:20px;font-weight:500;">⏳ Envoi en cours…</p>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:24px;">Données transmises à Make.com avec les textes résolus, prêts pour Mistral.</p>
+        <div id="summary-rows"></div>
+        <div style="margin-top:24px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">JSON prêt pour Make.com / Mistral prompt :</div>
+          <div class="json-block" id="json-output"></div>
+          <button class="copy-btn" onclick="copyJson()">📋 Copier le JSON</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let currentStep = 1;
+const totalSteps = 12;
+
+// Data store
+const answers = {
+  sector: { id: null, text: null },
+  employee_count: { id: null, text: null },
+  role_ai: { id: null, text: null },
+  ai_tools: { ids: [], texts: [] },
+  chatbot_yn: null,
+  hr_ai_yn: null,
+  data_types: { id: null, text: null },
+  auto_decision_yn: null,
+  ai_content_yn: null,
+  vendor_compliance: { id: null, text: null },
+  ai_literacy: { id: null, text: null },
+  name: null,
+  email: null,
+  company: null,
+  siren: null
+};
+
+// Radio options
+document.querySelectorAll('.option:not(.checkbox-opt)').forEach(opt => {
+  opt.addEventListener('click', () => {
+    const name = opt.querySelector('input').name;
+    document.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
+      inp.closest('.option').classList.remove('selected');
+    });
+    opt.classList.add('selected');
+    const id = opt.dataset.value;
+    const text = opt.dataset.text;
+    if (answers[name] !== undefined && typeof answers[name] === 'object' && answers[name] !== null && 'id' in answers[name]) {
+      answers[name].id = id;
+      answers[name].text = text;
+    }
+  });
+});
+
+// Checkbox options
+document.querySelectorAll('.checkbox-opt').forEach(opt => {
+  opt.addEventListener('click', () => {
+    opt.classList.toggle('selected');
+    const id = opt.dataset.value;
+    const text = opt.dataset.text;
+    const inp = opt.querySelector('input');
+    inp.checked = !inp.checked;
+    if (inp.checked) {
+      if (!answers.ai_tools.ids.includes(id)) {
+        answers.ai_tools.ids.push(id);
+        answers.ai_tools.texts.push(text);
+      }
+    } else {
+      answers.ai_tools.ids = answers.ai_tools.ids.filter(i => i !== id);
+      answers.ai_tools.texts = answers.ai_tools.texts.filter(t => t !== text);
+    }
+  });
+});
+
+function selectScale(field, val, btn) {
+  const wrap = btn.closest('.scale-wrap');
+  wrap.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  answers[field] = val;
+}
+
+function updateProgress() {
+  const pct = ((currentStep - 1) / totalSteps) * 100;
+  document.getElementById('progress').style.width = pct + '%';
+}
+
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.querySelector(`[data-step="${n}"]`).classList.add('active');
+  updateProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function nextStep() {
+  if (currentStep < totalSteps) {
+    currentStep++;
+    showStep(currentStep);
+  }
+}
+
+function prevStep() {
+  if (currentStep > 1) {
+    currentStep--;
+    showStep(currentStep);
+  }
+}
+
+async function submitForm() {
+  // ── PASTE YOUR MAKE.COM WEBHOOK URL HERE ──────────────────────────────────
+  const MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/REPLACE_WITH_YOUR_WEBHOOK';
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Collect text inputs
+  answers.name    = document.getElementById('inp-name').value    || '—';
+  answers.email   = document.getElementById('inp-email').value   || '—';
+  answers.company = document.getElementById('inp-company').value || '—';
+  answers.siren   = document.getElementById('inp-siren').value   || '—';
+
+  // Build normalized payload — clean text, no UUIDs
+  const today = new Date();
+  const date  = `${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+
+  const payload = {
+    secteur:           answers.sector.text              || '—',
+    effectif:          answers.employee_count.text      || '—',
+    role_ia:           answers.role_ai.text             || '—',
+    outils_ia:         answers.ai_tools.texts.join(', ')|| '—',
+    chatbot_yn:        answers.chatbot_yn               || '—',
+    hr_ai_yn:          answers.hr_ai_yn                 || '—',
+    types_donnees:     answers.data_types.text          || '—',
+    auto_decision_yn:  answers.auto_decision_yn         || '—',
+    ai_content_yn:     answers.ai_content_yn            || '—',
+    vendor_compliance: answers.vendor_compliance.text   || '—',
+    ai_literacy:       answers.ai_literacy.text         || '—',
+    nom_client:        answers.name,
+    email_client:      answers.email,
+    entreprise:        answers.company,
+    siren:             answers.siren,
+    date_generation:   date
+  };
+
+  // Show results screen immediately
+  document.getElementById('progress').style.width = '100%';
+  currentStep = 13;
+  showStep(13);
+
+  // Render summary rows
+  document.getElementById('summary-rows').innerHTML = Object.entries(payload).map(([k, v]) =>
+    `<div class="summary-row">
+      <span class="summary-key">${k}</span>
+      <span class="summary-val">${v}</span>
+    </div>`
+  ).join('');
+
+  // Render JSON preview
+  document.getElementById('json-output').textContent = JSON.stringify(payload, null, 2);
+
+  // POST to Make.com webhook
+  const statusEl = document.getElementById('webhook-status');
+  statusEl.textContent = '⏳ Envoi vers Make.com…';
+  statusEl.style.color = 'var(--muted)';
+
+  try {
+    const res = await fetch(MAKE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      statusEl.textContent = '✅ Données envoyées à Make.com avec succès !';
+      statusEl.style.color = 'var(--accent)';
+    } else {
+      statusEl.textContent = `⚠️ Make.com a répondu avec le code ${res.status}. Vérifiez votre webhook URL.`;
+      statusEl.style.color = 'var(--error)';
+    }
+  } catch (err) {
+    statusEl.textContent = '⚠️ Impossible de joindre Make.com. Vérifiez l\'URL du webhook dans le code (ligne MAKE_WEBHOOK_URL).';
+    statusEl.style.color = 'var(--error)';
+  }
+}
+
+function copyJson() {
+  const txt = document.getElementById('json-output').textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✅ Copié !';
+    setTimeout(() => btn.textContent = '📋 Copier le JSON', 2000);
+  });
+}
+</script>
+</body>
+</html>
